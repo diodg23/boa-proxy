@@ -23,11 +23,11 @@ app.post("/savePlayerData", async (req, res) => {
     const response = await fetch(SUPABASE_URL, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "apikey": SUPABASE_KEY,
-        "Authorization": `Bearer ${SUPABASE_KEY}`,
-        "Prefer": "resolution=merge-duplicates",
-        "wallet": wallet
+  "Content-Type": "application/json",
+  "apikey": SUPABASE_KEY,
+  "Authorization": `Bearer ${SUPABASE_KEY}`,
+  "Prefer": "resolution=merge-duplicates",
+  "request.headers.wallet": wallet
       },
       body: JSON.stringify([{ wallet, banana, stars }])
     });
