@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   "Content-Type": "application/json",
   "apikey": SUPABASE_KEY,
   "Authorization": `Bearer ${SUPABASE_KEY}`,
-  "Prefer": "resolution=merge-duplicates,return=representation",
+  "Prefer": "resolution=merge-duplicates",
   "request.headers.wallet": wallet,
 };
 
