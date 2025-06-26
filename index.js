@@ -8,7 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 // Ganti dengan data Supabase kamu
 const SUPABASE_URL = "https://vhvtnpczvqqgibtakgab.supabase.co/rest/v1/players";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."; // skrinsupabasenya disingkat untuk keamanan
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZodnRucGN6dnFxZ2lidGFrZ2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NTU5MzQsImV4cCI6MjA2NjUzMTkzNH0.XdV4dz0YVUwEIdnyP6L2BAjLYMPdIt863-Bfn60gZ6s"; // skrinsupabasenya disingkat untuk keamanan
 
 app.use(cors());
 app.use(express.json());
