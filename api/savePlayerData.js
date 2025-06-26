@@ -70,19 +70,31 @@ export default async function handler(req, res) {
 
     // 4. UPDATE STARS BERDASARKAN HASIL (WIN/LOSE)
     if (action === "updateResult") {
-      if (!wallet || !result) return res.status(400).json({ error: "Missing wallet or result" });
+  if (!wallet || !["win", "lose"].includes(result)) {
+    return res.status(400).json({ error: "Missing wallet or invalid result" });
+  }
 
-      const increment = result === "win" ? 1 : result === "lose" ? -1 : 0;
+  // Ambil data player
+  const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+    method: "GET",
+    headers,
+  });
+  const [player] = await getRes.json();
 
-      const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ stars: { increment } }),
-      });
+  if (!player) return res.status(404).json({ error: "Player not found" });
 
-      const data = await response.json();
-      return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
-    }
+  const delta = result === "win" ? 1 : -1;
+  const newStars = (player.stars || 0) + delta;
+
+  const updateRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ stars: newStars }),
+  });
+
+  const data = await updateRes.json();
+  return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, data } : { error: data });
+}
 
     // 5. LEADERBOARD
     if (action === "leaderboard") {
