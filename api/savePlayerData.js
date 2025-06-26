@@ -52,18 +52,21 @@ export default async function handler(req, res) {
 
     // 3. UPDATE STARS LANGSUNG
     if (action === "updateStars") {
-      if (!wallet || typeof stars !== "number")
-        return res.status(400).json({ error: "Missing wallet or stars (must be number)" });
+  if (!wallet || typeof stars !== "number")
+    return res.status(400).json({ error: "Missing wallet or stars (must be number)" });
 
-      const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ stars }),
-      });
+  const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      "Prefer": "return=representation",
+    },
+    body: JSON.stringify({ stars }),
+  });
 
-      const data = await response.json();
-      return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
-    }
+  const data = await response.json();
+  return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
+}
 
     // 4. UPDATE STARS BERDASARKAN HASIL (WIN/LOSE)
     if (action === "updateResult") {
