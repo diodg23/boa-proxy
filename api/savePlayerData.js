@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing wallet or invalid result" });
   }
 
-  // Ambil data player
+  // Ambil data player berdasarkan wallet
   const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
     method: "GET",
     headers,
@@ -83,19 +83,24 @@ export default async function handler(req, res) {
 
   if (!player) return res.status(404).json({ error: "Player not found" });
 
-  const delta = result === "win" ? 1 : -1;
-  const newStars = (player.stars || 0) + delta;
+  // Jumlah penyesuaian stars
+  const delta = result === "win" ? 20 : -10;
+  const newStars = Math.max((player.stars || 0) + delta, 0); // pastikan tidak minus
 
+  // Update stars di Supabase
   const updateRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
     method: "PATCH",
     headers,
     body: JSON.stringify({ stars: newStars }),
   });
 
-  const data = await updateRes.json();
-  return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, data } : { error: data });
-}
+  if (updateRes.status === 204) {
+    return res.status(200).json({ success: true, wallet, newStars });
+  }
 
+  const updateData = await updateRes.json();
+  return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
+}
     // 5. LEADERBOARD
     if (action === "leaderboard") {
       const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
