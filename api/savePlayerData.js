@@ -17,12 +17,12 @@ export default async function handler(req, res) {
   console.log("🔐 Supabase Key:", SUPABASE_KEY ? "✅ Present" : "❌ Missing");
 
   const headers = {
-    "Content-Type": "application/json",
-    "apikey": SUPABASE_KEY,
-    "Authorization": `Bearer ${SUPABASE_KEY}`,
-    "Prefer": "return=representation",
-    "request.headers.wallet": wallet,
-  };
+  "Content-Type": "application/json",
+  "apikey": SUPABASE_KEY,
+  "Authorization": `Bearer ${SUPABASE_KEY}`,
+  "Prefer": "resolution=merge-duplicates,return=representation",
+  "request.headers.wallet": wallet,
+};
 
   const body = JSON.stringify([{ wallet, banana, stars }]);
 
