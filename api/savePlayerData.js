@@ -10,6 +10,7 @@ export default async function handler(req, res) {
 
   const SUPABASE_URL = "https://vhvtnpczvqqgibtakgab.supabase.co/rest/v1/players";
   const SUPABASE_KEY = process.env.SUPABASE_KEY;
+  console.log("Using Supabase Key:", SUPABASE_KEY ? "✅ Present" : "❌ Missing");
 
   const headers = {
     "Content-Type": "application/json",
