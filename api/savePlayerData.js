@@ -119,14 +119,20 @@ if (action === "save") {
 }
     // 5. LEADERBOARD
     if (action === "leaderboard") {
-      const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
-        method: "GET",
-        headers,
-      });
+  const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
+    method: "GET",
+    headers,
+  });
 
-      const data = await response.json();
-      return res.status(200).json(data);
-    }
+  const data = await response.json();
+
+  // ✅ Jamin hasil selalu array
+  if (!Array.isArray(data)) {
+    return res.status(200).json([]); // fallback aman
+  }
+
+  return res.status(200).json(data);
+}
     // 6. UPGRADE SKILL
 if (action === "upgradeSkill") {
   if (!wallet || !skillName || typeof newLevel !== "number" || typeof newBanana !== "number") {
