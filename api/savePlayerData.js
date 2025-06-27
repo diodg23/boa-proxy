@@ -116,7 +116,43 @@ if (action === "save") {
       const data = await response.json();
       return res.status(200).json(data);
     }
+    // 6. UPGRADE SKILL
+if (action === "upgradeSkill") {
+  if (!wallet || !skillName || typeof newLevel !== "number" || typeof newBanana !== "number") {
+    return res.status(400).json({ error: "Missing or invalid wallet, skillName, newLevel, or newBanana" });
+  }
 
+  // Ambil player
+  const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+    method: "GET",
+    headers,
+  });
+  const [player] = await getRes.json();
+
+  if (!player) return res.status(404).json({ error: "Player not found" });
+
+  // Update skill dan banana
+  const updatedSkills = {
+    ...(player.skills || {}),
+    [skillName]: newLevel,
+  };
+
+  const updateRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      banana: newBanana,
+      skills: updatedSkills,
+    }),
+  });
+
+  if (updateRes.status === 204) {
+    return res.status(200).json({ success: true, wallet, skillName, newLevel, newBanana });
+  }
+
+  const updateData = await updateRes.json();
+  return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
+}
     // Jika action tidak dikenal
     return res.status(400).json({ error: "Invalid action" });
   } catch (err) {
