@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     "Authorization": `Bearer ${SUPABASE_KEY}`,
   };
 
-  const { action, wallet, banana, stars, result } = req.body;
+  const { action, wallet, banana, stars, result, skillName, newLevel, newBanana } = req.body;
 
   if (!action) return res.status(400).json({ error: "Missing action" });
 
