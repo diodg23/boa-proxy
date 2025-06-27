@@ -1,6 +1,7 @@
 import fetch from "node-fetch";
 
 export default async function handler(req, res) {
+  console.log("BODY:", req.body);
   // ✅ Tambahkan CORS Header di awal
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -129,17 +130,22 @@ if (action === "save") {
     // 6. UPGRADE SKILL
 if (action === "upgradeSkill") {
   if (!wallet || !skillName || typeof newLevel !== "number" || typeof newBanana !== "number") {
+    console.error("❌ Invalid upgradeSkill input:", { wallet, skillName, newLevel, newBanana });
     return res.status(400).json({ error: "Missing or invalid wallet, skillName, newLevel, or newBanana" });
   }
 
-  // Ambil player
+  // Ambil data player
   const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
     method: "GET",
     headers,
   });
+
   const [player] = await getRes.json();
 
-  if (!player) return res.status(404).json({ error: "Player not found" });
+  if (!player) {
+    console.error("❌ Player not found for upgradeSkill:", wallet);
+    return res.status(404).json({ error: "Player not found" });
+  }
 
   // Update skill dan banana
   const updatedSkills = {
@@ -161,6 +167,7 @@ if (action === "upgradeSkill") {
   }
 
   const updateData = await updateRes.json();
+  console.error("❌ Failed to upgradeSkill response:", updateData);
   return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
 }
     // Jika action tidak dikenal
