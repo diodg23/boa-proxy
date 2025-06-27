@@ -19,24 +19,29 @@ export default async function handler(req, res) {
   if (!action) return res.status(400).json({ error: "Missing action" });
 
   try {
-    // 1. SAVE PLAYER
-    if (action === "save") {
-      if (!wallet) return res.status(400).json({ error: "Missing wallet" });
+   // 1. SAVE PLAYER (tambahkan dukungan untuk skills)
+if (action === "save") {
+  if (!wallet) return res.status(400).json({ error: "Missing wallet" });
 
-      const response = await fetch(SUPABASE_URL, {
-        method: "POST",
-        headers: {
-          ...headers,
-          "Prefer": "resolution=merge-duplicates, return=representation",
-          "request.headers.wallet": wallet,
-        },
-        body: JSON.stringify([{ wallet, banana, stars }]),
-      });
+  const playerData = {
+    wallet,
+    ...(banana !== undefined && { banana }),
+    ...(stars !== undefined && { stars }),
+    ...(req.body.skills && { skills: req.body.skills }),
+  };
 
-      const data = await response.json();
-      return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
-    }
+  const response = await fetch(SUPABASE_URL, {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Prefer": "resolution=merge-duplicates, return=representation",
+    },
+    body: JSON.stringify([playerData]),
+  });
 
+  const data = await response.json();
+  return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
+}
     // 2. GET PLAYER DATA
     if (action === "get") {
       if (!wallet) return res.status(400).json({ error: "Missing wallet" });
