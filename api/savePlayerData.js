@@ -28,6 +28,13 @@ export default async function handler(req, res) {
   // ✅ Validasi Signature (HMAC)
   const signature = req.headers["x-signature"];
   const secret = process.env.HMAC_SECRET;
+  console.log("💡 Received body:", req.body);
+  console.log("💡 Received signature:", signature);
+  console.log("💡 Calculated signature:", crypto
+  .createHmac("sha256", secret)
+  .update(JSON.stringify(req.body))
+  .digest("hex"));
+
 
   if (!signature || !isValidSignature(req.body, signature, secret)) {
     return res.status(403).json({ error: "Invalid or missing signature" });
