@@ -24,14 +24,14 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-signature");
 
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") return res.status(405).json({ success: false, error: "Method not allowed" });
 
   const {
     action, wallet, message, signature,
     banana, stars, result, skillName, newLevel, newBanana, sessionToken
   } = req.body;
 
-  if (!action) return res.status(400).json({ error: "Missing action" });
+  if (!action) return res.status(400).json({ success: false, error: "Missing action" });
 
   const SUPABASE_URL = "https://vhvtnpczvqqgibtakgab.supabase.co/rest/v1/players";
   const SESSION_URL = "https://vhvtnpczvqqgibtakgab.supabase.co/rest/v1/sessions";
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
   try {
     if (action === "login") {
       if (!wallet || !message || !signature) {
-        return res.status(400).json({ error: "Missing wallet, message, or signature" });
+        return res.status(400).json({ success: false, error: "Missing wallet, message, or signature" });
       }
 
       const verified = nacl.sign.detached.verify(
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       );
 
       if (!verified) {
-        return res.status(403).json({ error: "Invalid signature" });
+        return res.status(403).json({ success: false, error: "Invalid signature" });
       }
 
       const newToken = crypto.randomBytes(32).toString("hex");
@@ -74,28 +74,18 @@ export default async function handler(req, res) {
 
       if (!sessionStore.ok) {
         const error = await sessionStore.text();
-        return res.status(500).json({ error });
+        return res.status(500).json({ success: false, error });
       }
+
       return res.status(200).json({
-  success: true,
-  data: { sessionToken: newToken }
-});
+        success: true,
+        sessionToken: newToken
+      });
     }
-    console.log("🔥 Login Response:", {
-      action,
-      wallet,
-      sessionToken,
-      banana,
-      stars,
-      result,
-      skillName,
-      newLevel,
-      newBanana 
-    });
 
     const sig = req.headers["x-signature"];
     if (!sig || !isValidSignatureForPayload(req.body, sig, secret)) {
-      return res.status(403).json({ error: "Invalid or missing signature" });
+      return res.status(403).json({ success: false, error: "Invalid or missing signature" });
     }
 
     const sessionRes = await fetch(`${SESSION_URL}?wallet=eq.${wallet}&token=eq.${sessionToken}`, {
@@ -104,10 +94,9 @@ export default async function handler(req, res) {
     });
     const sessionData = await sessionRes.json();
     if (!Array.isArray(sessionData) || sessionData.length === 0) {
-      return res.status(403).json({ error: "Invalid session token" });
+      return res.status(403).json({ success: false, error: "Invalid session token" });
     }
 
-    // Action: SAVE PLAYER
     if (action === "save" && wallet) {
       const playerData = {
         wallet,
@@ -126,10 +115,11 @@ export default async function handler(req, res) {
       });
 
       const data = await response.json();
-      return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
+      return res.status(response.ok ? 200 : 400).json(
+        response.ok ? { success: true, data } : { success: false, error: data }
+      );
     }
 
-    // Action: GET PLAYER DATA
     if (action === "get" && wallet) {
       const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
         method: "GET",
@@ -137,10 +127,9 @@ export default async function handler(req, res) {
       });
 
       const data = await response.json();
-      return res.status(200).json(data?.[0] || {});
+      return res.status(200).json({ success: true, data: data?.[0] || {} });
     }
 
-    // Action: UPDATE STARS
     if (action === "updateStars" && wallet && typeof stars === "number") {
       const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
         method: "PATCH",
@@ -152,14 +141,15 @@ export default async function handler(req, res) {
       });
 
       const data = await response.json();
-      return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
+      return res.status(response.ok ? 200 : 400).json(
+        response.ok ? { success: true, data } : { success: false, error: data }
+      );
     }
 
-    // Action: UPDATE RESULT
     if (action === "updateResult" && wallet && ["win", "lose"].includes(result)) {
       const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, { method: "GET", headers });
       const [player] = await getRes.json();
-      if (!player) return res.status(404).json({ error: "Player not found" });
+      if (!player) return res.status(404).json({ success: false, error: "Player not found" });
 
       const delta = result === "win" ? 20 : -10;
       const newStars = Math.max((player.stars || 0) + delta, 0);
@@ -170,15 +160,13 @@ export default async function handler(req, res) {
         body: JSON.stringify({ stars: newStars }),
       });
 
-      if (updateRes.status === 204) {
-        return res.status(200).json({ success: true, wallet, newStars });
-      }
-
-      const updateData = await updateRes.json();
-      return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
+      return res.status(updateRes.ok ? 200 : 400).json(
+        updateRes.ok
+          ? { success: true, wallet, newStars }
+          : { success: false, error: await updateRes.json() }
+      );
     }
 
-    // Action: LEADERBOARD
     if (action === "leaderboard") {
       const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
         method: "GET",
@@ -186,14 +174,13 @@ export default async function handler(req, res) {
       });
 
       const data = await response.json();
-      return res.status(200).json(Array.isArray(data) ? data : []);
+      return res.status(200).json({ success: true, data: Array.isArray(data) ? data : [] });
     }
 
-    // Action: UPGRADE SKILL
     if (action === "upgradeSkill" && wallet && skillName && typeof newLevel === "number" && typeof newBanana === "number") {
       const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, { method: "GET", headers });
       const [player] = await getRes.json();
-      if (!player) return res.status(404).json({ error: "Player not found" });
+      if (!player) return res.status(404).json({ success: false, error: "Player not found" });
 
       const updatedSkills = {
         ...(player.skills || {}),
@@ -206,16 +193,16 @@ export default async function handler(req, res) {
         body: JSON.stringify({ banana: newBanana, skills: updatedSkills }),
       });
 
-      if (updateRes.status === 204) {
-        return res.status(200).json({ success: true, wallet, skillName, newLevel, newBanana });
-      }
-
-      const updateData = await updateRes.json();
-      return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
+      return res.status(updateRes.ok ? 200 : 400).json(
+        updateRes.ok
+          ? { success: true, wallet, skillName, newLevel, newBanana }
+          : { success: false, error: await updateRes.json() }
+      );
     }
-    return res.status(400).json({ error: "Invalid or missing action" });
+
+    return res.status(400).json({ success: false, error: "Invalid or missing action" });
   } catch (err) {
     console.error("🔥 BACKEND ERROR DETAILS:", err);
-    return res.status(500).json({ error: "Unexpected error", details: err.message });
+    return res.status(500).json({ success: false, error: "Unexpected error", details: err.message });
   }
 }
