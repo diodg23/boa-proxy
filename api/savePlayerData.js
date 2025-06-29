@@ -1,7 +1,17 @@
-import crypto from "crypto";
-import fetch from "node-fetch";
-import nacl from "tweetnacl";
-import bs58 from "bs58";
+// savePlayerData.js - The Backend Powerhouse for Battle Of Ape
+
+// Use require() for Node.js compatible module loading
+// crypto is a built-in Node.js module
+import crypto from "crypto"; // This is fine for built-in modules in ES module context
+import fetch from "node-fetch"; // This will now correctly resolve to the installed 'node-fetch' package
+import nacl from "tweetnacl"; // This will now correctly resolve to the installed 'tweetnacl' package
+import bs58 from "bs58";     // This will now correctly resolve to the installed 'bs58' package
+
+// If your environment strictly requires CommonJS for these, you might need:
+// const crypto = require("crypto");
+// const fetch = require("node-fetch");
+// const nacl = require("tweetnacl");
+// const bs58 = require("bs58");
 
 function isValidSignatureForPayload(data, signature, secret) {
   const payload = {
