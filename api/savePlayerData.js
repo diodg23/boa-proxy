@@ -76,10 +76,12 @@ export default async function handler(req, res) {
         const error = await sessionStore.text();
         return res.status(500).json({ error });
       }
-
-      return res.status(200).json({ sessionToken: newToken });
+      return res.status(200).json({
+  success: true,
+  data: { sessionToken: newToken }
+});
     }
-    console.log("🔶 Incoming Request:", {
+    console.log("🔥 Login Response:", {
       action,
       wallet,
       sessionToken,
