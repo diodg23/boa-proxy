@@ -1,11 +1,20 @@
+import crypto from "crypto";
 import fetch from "node-fetch";
 
+function isValidSignature(body, signature, secret) {
+  const payload = JSON.stringify(body);
+  const hash = crypto
+    .createHmac("sha256", secret)
+    .update(payload)
+    .digest("hex");
+  return hash === signature;
+}
+
 export default async function handler(req, res) {
-  console.log("BODY:", req.body);
   // ✅ Tambahkan CORS Header di awal
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-signature');
 
   // ✅ Tangani preflight OPTIONS
   if (req.method === 'OPTIONS') {
@@ -14,6 +23,14 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ✅ Validasi Signature (HMAC)
+  const signature = req.headers["x-signature"];
+  const secret = process.env.HMAC_SECRET;
+
+  if (!signature || !isValidSignature(req.body, signature, secret)) {
+    return res.status(403).json({ error: "Invalid or missing signature" });
   }
 
   const SUPABASE_URL = "https://vhvtnpczvqqgibtakgab.supabase.co/rest/v1/players";
