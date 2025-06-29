@@ -79,6 +79,17 @@ export default async function handler(req, res) {
 
       return res.status(200).json({ sessionToken: newToken });
     }
+    console.log("🔶 Incoming Request:", {
+      action,
+      wallet,
+      sessionToken,
+      banana,
+      stars,
+      result,
+      skillName,
+      newLevel,
+      newBanana 
+    });
 
     const sig = req.headers["x-signature"];
     if (!sig || !isValidSignatureForPayload(req.body, sig, secret)) {
@@ -202,7 +213,7 @@ export default async function handler(req, res) {
     }
     return res.status(400).json({ error: "Invalid or missing action" });
   } catch (err) {
-    console.error("🔥 BACKEND ERROR:", err);
+    console.error("🔥 BACKEND ERROR DETAILS:", err);
     return res.status(500).json({ error: "Unexpected error", details: err.message });
   }
 }
