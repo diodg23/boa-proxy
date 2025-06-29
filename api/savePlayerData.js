@@ -1,47 +1,33 @@
 import crypto from "crypto";
 import fetch from "node-fetch";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
 
 function isValidSignature(body, signature, secret) {
   const payload = JSON.stringify(body);
-  const hash = crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("hex");
+  const hash = crypto.createHmac("sha256", secret).update(payload).digest("hex");
   return hash === signature;
 }
 
 export default async function handler(req, res) {
-  // ✅ Tambahkan CORS Header di awal
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-signature');
 
-  // ✅ Tangani preflight OPTIONS
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  const {
+    action, wallet, message, signature,
+    banana, stars, result, skillName, newLevel, newBanana, sessionToken
+  } = req.body;
 
-  // ✅ Validasi Signature (HMAC)
-  const signature = req.headers["x-signature"];
-  const secret = process.env.HMAC_SECRET;
-  console.log("💡 Received body:", req.body);
-  console.log("💡 Received signature:", signature);
-  console.log("💡 Calculated signature:", crypto
-  .createHmac("sha256", secret)
-  .update(JSON.stringify(req.body))
-  .digest("hex"));
-
-
-  if (!signature || !isValidSignature(req.body, signature, secret)) {
-    return res.status(403).json({ error: "Invalid or missing signature" });
-  }
+  if (!action) return res.status(400).json({ error: "Missing action" });
 
   const SUPABASE_URL = "https://vhvtnpczvqqgibtakgab.supabase.co/rest/v1/players";
+  const SESSION_URL = "https://vhvtnpczvqqgibtakgab.supabase.co/rest/v1/sessions";
   const SUPABASE_KEY = process.env.SUPABASE_KEY;
+  const secret = process.env.HMAC_SECRET;
 
   const headers = {
     "Content-Type": "application/json",
@@ -49,34 +35,77 @@ export default async function handler(req, res) {
     "Authorization": `Bearer ${SUPABASE_KEY}`,
   };
 
-  const { action, wallet, banana, stars, result, skillName, newLevel, newBanana } = req.body;
-
-  if (!action) return res.status(400).json({ error: "Missing action" });
-
   try {
-   // 1. SAVE PLAYER (tambahkan dukungan untuk skills)
-if (action === "save") {
-  if (!wallet) return res.status(400).json({ error: "Missing wallet" });
+    if (action === "login") {
+      if (!wallet || !message || !signature) {
+        return res.status(400).json({ error: "Missing wallet, message, or signature" });
+      }
 
-  const playerData = {
-    wallet,
-    ...(banana !== undefined && { banana }),
-    ...(stars !== undefined && { stars }),
-    ...(req.body.skills && { skills: req.body.skills }),
-  };
+      const verified = nacl.sign.detached.verify(
+        new TextEncoder().encode(message),
+        bs58.decode(signature),
+        bs58.decode(wallet)
+      );
 
-  const response = await fetch(SUPABASE_URL, {
-    method: "POST",
-    headers: {
-      ...headers,
-      "Prefer": "resolution=merge-duplicates, return=representation",
-    },
-    body: JSON.stringify([playerData]),
-  });
+      if (!verified) {
+        return res.status(403).json({ error: "Invalid signature" });
+      }
 
-  const data = await response.json();
-  return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
-}
+      const newToken = crypto.randomBytes(32).toString("hex");
+
+      const sessionStore = await fetch(SESSION_URL, {
+        method: "POST",
+        headers,
+        body: JSON.stringify([{ wallet, token: newToken }]),
+      });
+
+      if (!sessionStore.ok) {
+        const error = await sessionStore.text();
+        return res.status(500).json({ error });
+      }
+
+      return res.status(200).json({ sessionToken: newToken });
+    }
+
+    // Validate HMAC + session token untuk semua aksi selain login
+    const sig = req.headers["x-signature"];
+    if (!sig || !isValidSignature(req.body, sig, secret)) {
+      return res.status(403).json({ error: "Invalid or missing signature" });
+    }
+
+    const sessionRes = await fetch(`${SESSION_URL}?wallet=eq.${wallet}&token=eq.${sessionToken}`, {
+      method: "GET",
+      headers,
+    });
+    const sessionData = await sessionRes.json();
+    if (!Array.isArray(sessionData) || sessionData.length === 0) {
+      return res.status(403).json({ error: "Invalid session token" });
+    }
+
+    // 1. SAVE PLAYER
+    if (action === "save") {
+      if (!wallet) return res.status(400).json({ error: "Missing wallet" });
+
+      const playerData = {
+        wallet,
+        ...(banana !== undefined && { banana }),
+        ...(stars !== undefined && { stars }),
+        ...(req.body.skills && { skills: req.body.skills }),
+      };
+
+      const response = await fetch(SUPABASE_URL, {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Prefer": "resolution=merge-duplicates, return=representation",
+        },
+        body: JSON.stringify([playerData]),
+      });
+
+      const data = await response.json();
+      return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
+    }
+
     // 2. GET PLAYER DATA
     if (action === "get") {
       if (!wallet) return res.status(400).json({ error: "Missing wallet" });
@@ -92,115 +121,85 @@ if (action === "save") {
 
     // 3. UPDATE STARS LANGSUNG
     if (action === "updateStars") {
-  if (!wallet || typeof stars !== "number")
-    return res.status(400).json({ error: "Missing wallet or stars (must be number)" });
+      if (!wallet || typeof stars !== "number")
+        return res.status(400).json({ error: "Missing wallet or stars (must be number)" });
 
-  const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
-    method: "PATCH",
-    headers: {
-      ...headers,
-      "Prefer": "return=representation",
-    },
-    body: JSON.stringify({ stars }),
-  });
+      const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+        method: "PATCH",
+        headers: {
+          ...headers,
+          "Prefer": "return=representation",
+        },
+        body: JSON.stringify({ stars }),
+      });
 
-  const data = await response.json();
-  return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
-}
+      const data = await response.json();
+      return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
+    }
 
-    // 4. UPDATE STARS BERDASARKAN HASIL (WIN/LOSE)
+    // 4. UPDATE RESULT (WIN/LOSE)
     if (action === "updateResult") {
-  if (!wallet || !["win", "lose"].includes(result)) {
-    return res.status(400).json({ error: "Missing wallet or invalid result" });
-  }
+      if (!wallet || !["win", "lose"].includes(result)) {
+        return res.status(400).json({ error: "Missing wallet or invalid result" });
+      }
 
-  // Ambil data player berdasarkan wallet
-  const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
-    method: "GET",
-    headers,
-  });
-  const [player] = await getRes.json();
+      const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, { method: "GET", headers });
+      const [player] = await getRes.json();
+      if (!player) return res.status(404).json({ error: "Player not found" });
 
-  if (!player) return res.status(404).json({ error: "Player not found" });
+      const delta = result === "win" ? 20 : -10;
+      const newStars = Math.max((player.stars || 0) + delta, 0);
 
-  // Jumlah penyesuaian stars
-  const delta = result === "win" ? 20 : -10;
-  const newStars = Math.max((player.stars || 0) + delta, 0); // pastikan tidak minus
+      const updateRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ stars: newStars }),
+      });
 
-  // Update stars di Supabase
-  const updateRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify({ stars: newStars }),
-  });
+      if (updateRes.status === 204) {
+        return res.status(200).json({ success: true, wallet, newStars });
+      }
 
-  if (updateRes.status === 204) {
-    return res.status(200).json({ success: true, wallet, newStars });
-  }
+      const updateData = await updateRes.json();
+      return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
+    }
 
-  const updateData = await updateRes.json();
-  return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
-}
     // 5. LEADERBOARD
     if (action === "leaderboard") {
-  const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
-    method: "GET",
-    headers,
-  });
+      const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, { method: "GET", headers });
+      const data = await response.json();
+      return res.status(200).json(Array.isArray(data) ? data : []);
+    }
 
-  const data = await response.json();
-
-  // ✅ Jamin hasil selalu array
-  if (!Array.isArray(data)) {
-    return res.status(200).json([]); // fallback aman
-  }
-
-  return res.status(200).json(data);
-}
     // 6. UPGRADE SKILL
-if (action === "upgradeSkill") {
-  if (!wallet || !skillName || typeof newLevel !== "number" || typeof newBanana !== "number") {
-    console.error("❌ Invalid upgradeSkill input:", { wallet, skillName, newLevel, newBanana });
-    return res.status(400).json({ error: "Missing or invalid wallet, skillName, newLevel, or newBanana" });
-  }
+    if (action === "upgradeSkill") {
+      if (!wallet || !skillName || typeof newLevel !== "number" || typeof newBanana !== "number") {
+        return res.status(400).json({ error: "Missing or invalid wallet, skillName, newLevel, or newBanana" });
+      }
 
-  // Ambil data player
-  const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
-    method: "GET",
-    headers,
-  });
+      const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, { method: "GET", headers });
+      const [player] = await getRes.json();
+      if (!player) return res.status(404).json({ error: "Player not found" });
 
-  const [player] = await getRes.json();
+      const updatedSkills = {
+        ...(player.skills || {}),
+        [skillName]: newLevel,
+      };
 
-  if (!player) {
-    console.error("❌ Player not found for upgradeSkill:", wallet);
-    return res.status(404).json({ error: "Player not found" });
-  }
+      const updateRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ banana: newBanana, skills: updatedSkills }),
+      });
 
-  // Update skill dan banana
-  const updatedSkills = {
-    ...(player.skills || {}),
-    [skillName]: newLevel,
-  };
+      if (updateRes.status === 204) {
+        return res.status(200).json({ success: true, wallet, skillName, newLevel, newBanana });
+      }
 
-  const updateRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
-    method: "PATCH",
-    headers,
-    body: JSON.stringify({
-      banana: newBanana,
-      skills: updatedSkills,
-    }),
-  });
+      const updateData = await updateRes.json();
+      return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
+    }
 
-  if (updateRes.status === 204) {
-    return res.status(200).json({ success: true, wallet, skillName, newLevel, newBanana });
-  }
-
-  const updateData = await updateRes.json();
-  console.error("❌ Failed to upgradeSkill response:", updateData);
-  return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
-}
-    // Jika action tidak dikenal
     return res.status(400).json({ error: "Invalid action" });
   } catch (err) {
     return res.status(500).json({ error: "Unexpected error", details: err.message });
