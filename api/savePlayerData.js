@@ -3,9 +3,18 @@ import fetch from "node-fetch";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 
-function isValidSignature(body, signature, secret) {
-  const payload = JSON.stringify(body);
-  const hash = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+function isValidSignatureForPayload(data, signature, secret) {
+  const payload = {
+    action: data.action,
+    wallet: data.wallet,
+    ...(data.banana !== undefined && { banana: data.banana }),
+    ...(data.stars !== undefined && { stars: data.stars }),
+    ...(data.result !== undefined && { result: data.result }),
+    ...(data.skillName && { skillName: data.skillName }),
+    ...(data.newLevel !== undefined && { newLevel: data.newLevel }),
+    ...(data.newBanana !== undefined && { newBanana: data.newBanana }),
+  };
+  const hash = crypto.createHmac("sha256", secret).update(JSON.stringify(payload)).digest("hex");
   return hash === signature;
 }
 
@@ -14,13 +23,9 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-signature");
 
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
   const {
     action, wallet, message, signature,
     banana, stars, result, skillName, newLevel, newBanana, sessionToken
@@ -40,7 +45,6 @@ export default async function handler(req, res) {
   };
 
   try {
-    // Step 1: LOGIN (tanpa validasi HMAC/session)
     if (action === "login") {
       if (!wallet || !message || !signature) {
         return res.status(400).json({ error: "Missing wallet, message, or signature" });
@@ -64,7 +68,7 @@ export default async function handler(req, res) {
         body: JSON.stringify([{
           wallet,
           token: newToken,
-          created_at: new Date().toISOString() // optional
+          created_at: new Date().toISOString()
         }]),
       });
 
@@ -76,9 +80,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ sessionToken: newToken });
     }
 
-    // Step 2: Validasi HMAC dan sessionToken
     const sig = req.headers["x-signature"];
-    if (!sig || !isValidSignature(req.body, sig, secret)) {
+    if (!sig || !isValidSignatureForPayload(req.body, sig, secret)) {
       return res.status(403).json({ error: "Invalid or missing signature" });
     }
 
@@ -197,9 +200,9 @@ export default async function handler(req, res) {
       const updateData = await updateRes.json();
       return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
     }
-
     return res.status(400).json({ error: "Invalid or missing action" });
   } catch (err) {
+    console.error("🔥 BACKEND ERROR:", err);
     return res.status(500).json({ error: "Unexpected error", details: err.message });
   }
 }
