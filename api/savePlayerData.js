@@ -10,11 +10,11 @@ function isValidSignature(body, signature, secret) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-signature');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-signature");
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const {
@@ -36,6 +36,7 @@ export default async function handler(req, res) {
   };
 
   try {
+    // Step 1: LOGIN (tanpa validasi HMAC/session)
     if (action === "login") {
       if (!wallet || !message || !signature) {
         return res.status(400).json({ error: "Missing wallet, message, or signature" });
@@ -56,7 +57,11 @@ export default async function handler(req, res) {
       const sessionStore = await fetch(SESSION_URL, {
         method: "POST",
         headers,
-        body: JSON.stringify([{ wallet, token: newToken }]),
+        body: JSON.stringify([{
+          wallet,
+          token: newToken,
+          created_at: new Date().toISOString() // optional
+        }]),
       });
 
       if (!sessionStore.ok) {
@@ -67,7 +72,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ sessionToken: newToken });
     }
 
-    // Validate HMAC + session token untuk semua aksi selain login
+    // Step 2: Validasi HMAC dan sessionToken
     const sig = req.headers["x-signature"];
     if (!sig || !isValidSignature(req.body, sig, secret)) {
       return res.status(403).json({ error: "Invalid or missing signature" });
@@ -82,10 +87,8 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Invalid session token" });
     }
 
-    // 1. SAVE PLAYER
-    if (action === "save") {
-      if (!wallet) return res.status(400).json({ error: "Missing wallet" });
-
+    // Action: SAVE PLAYER
+    if (action === "save" && wallet) {
       const playerData = {
         wallet,
         ...(banana !== undefined && { banana }),
@@ -106,10 +109,8 @@ export default async function handler(req, res) {
       return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
     }
 
-    // 2. GET PLAYER DATA
-    if (action === "get") {
-      if (!wallet) return res.status(400).json({ error: "Missing wallet" });
-
+    // Action: GET PLAYER DATA
+    if (action === "get" && wallet) {
       const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
         method: "GET",
         headers,
@@ -119,11 +120,8 @@ export default async function handler(req, res) {
       return res.status(200).json(data?.[0] || {});
     }
 
-    // 3. UPDATE STARS LANGSUNG
-    if (action === "updateStars") {
-      if (!wallet || typeof stars !== "number")
-        return res.status(400).json({ error: "Missing wallet or stars (must be number)" });
-
+    // Action: UPDATE STARS
+    if (action === "updateStars" && wallet && typeof stars === "number") {
       const response = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, {
         method: "PATCH",
         headers: {
@@ -137,12 +135,8 @@ export default async function handler(req, res) {
       return res.status(response.ok ? 200 : 400).json(response.ok ? { success: true, data } : { error: data });
     }
 
-    // 4. UPDATE RESULT (WIN/LOSE)
-    if (action === "updateResult") {
-      if (!wallet || !["win", "lose"].includes(result)) {
-        return res.status(400).json({ error: "Missing wallet or invalid result" });
-      }
-
+    // Action: UPDATE RESULT
+    if (action === "updateResult" && wallet && ["win", "lose"].includes(result)) {
       const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, { method: "GET", headers });
       const [player] = await getRes.json();
       if (!player) return res.status(404).json({ error: "Player not found" });
@@ -164,19 +158,19 @@ export default async function handler(req, res) {
       return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
     }
 
-    // 5. LEADERBOARD
+    // Action: LEADERBOARD
     if (action === "leaderboard") {
-      const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, { method: "GET", headers });
+      const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
+        method: "GET",
+        headers,
+      });
+
       const data = await response.json();
       return res.status(200).json(Array.isArray(data) ? data : []);
     }
 
-    // 6. UPGRADE SKILL
-    if (action === "upgradeSkill") {
-      if (!wallet || !skillName || typeof newLevel !== "number" || typeof newBanana !== "number") {
-        return res.status(400).json({ error: "Missing or invalid wallet, skillName, newLevel, or newBanana" });
-      }
-
+    // Action: UPGRADE SKILL
+    if (action === "upgradeSkill" && wallet && skillName && typeof newLevel === "number" && typeof newBanana === "number") {
       const getRes = await fetch(`${SUPABASE_URL}?wallet=eq.${wallet}`, { method: "GET", headers });
       const [player] = await getRes.json();
       if (!player) return res.status(404).json({ error: "Player not found" });
@@ -200,7 +194,7 @@ export default async function handler(req, res) {
       return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
     }
 
-    return res.status(400).json({ error: "Invalid action" });
+    return res.status(400).json({ error: "Invalid or missing action" });
   } catch (err) {
     return res.status(500).json({ error: "Unexpected error", details: err.message });
   }
