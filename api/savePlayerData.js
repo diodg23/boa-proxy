@@ -7,12 +7,12 @@ function isValidSignatureForPayload(data, signature, secret) {
   const payload = {
     action: data.action,
     wallet: data.wallet,
-    ...(data.banana !== undefined && { banana: data.banana }),
-    ...(data.stars !== undefined && { stars: data.stars }),
-    ...(data.result !== undefined && { result: data.result }),
-    ...(data.skillName && { skillName: data.skillName }),
-    ...(data.newLevel !== undefined && { newLevel: data.newLevel }),
-    ...(data.newBanana !== undefined && { newBanana: data.newBanana }),
+    ...(data.banana !== undefined ? { banana: data.banana } : {}),
+    ...(data.stars !== undefined ? { stars: data.stars } : {}),
+    ...(data.result !== undefined ? { result: data.result } : {}),
+    ...(data.skillName ? { skillName: data.skillName } : {}),
+    ...(data.newLevel !== undefined ? { newLevel: data.newLevel } : {}),
+    ...(data.newBanana !== undefined ? { newBanana: data.newBanana } : {}),
   };
   const hash = crypto.createHmac("sha256", secret).update(JSON.stringify(payload)).digest("hex");
   return hash === signature;
