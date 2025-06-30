@@ -1,13 +1,15 @@
-const fetch = require("node-fetch");
+import fetch from "node-fetch";
 
 export default async function handler(req, res) {
+  // ✅ Tambahkan CORS Header di awal
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   // ✅ Tangani preflight OPTIONS
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
-  console.log("BODY:", req.body);
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -115,19 +117,14 @@ export default async function handler(req, res) {
 
     // 5. LEADERBOARD
     if (action === "leaderboard") {
-  const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
-    method: "GET",
-    headers,
-  });
+      const response = await fetch(`${SUPABASE_URL}?order=stars.desc&limit=10`, {
+        method: "GET",
+        headers,
+      });
 
-  const data = await response.json();
-
-  if (!Array.isArray(data)) {
-    return res.status(200).json([]); // fallback aman
-  }
-
-  return res.status(200).json(data);
-}
+      const data = await response.json();
+      return res.status(200).json(data);
+    }
 
     // 6. UPGRADE SKILL
     if (action === "upgradeSkill") {
@@ -171,4 +168,11 @@ export default async function handler(req, res) {
   const updateData = await updateRes.json();
   console.error("❌ Failed to upgradeSkill response:", updateData);
   return res.status(updateRes.ok ? 200 : 400).json(updateRes.ok ? { success: true, updateData } : { error: updateData });
+}
+    // Jika action tidak dikenal
+    return res.status(400).json({ error: "Invalid action" });
+
+  } catch (err) {
+    return res.status(500).json({ error: "Unexpected error", details: err.message });
+  }
 }
