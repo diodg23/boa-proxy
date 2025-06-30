@@ -1,13 +1,9 @@
 {
   "name": "boa-proxy",
   "version": "1.0.0",
-  "description": "",
   "main": "api/savePlayerData.js",
-  "scripts": {
-    "start": "node api/savePlayerData.js"
-  },
+  "type": "commonjs",
   "dependencies": {
     "node-fetch": "^2.6.7"
-  },
-  "license": "ISC"
+  }
 }
