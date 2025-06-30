@@ -2,16 +2,12 @@
   "name": "boa-proxy",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "api/savePlayerData.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node api/savePlayerData.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "bs58": "^6.0.0",
-    "node-fetch": "^2.6.7",
-    "tweetnacl": "^1.0.3"
-  }
+    "node-fetch": "^2.6.7"
+  },
+  "license": "ISC"
 }
