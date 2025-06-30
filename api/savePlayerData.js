@@ -4,7 +4,7 @@ console.log("BODY:", req.body);
 
 export default async function handler(req, res) {
   // ✅ Tambahkan CORS Header di awal
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader('Access-Control-Allow-Origin', 'https://cdn.dev.fun');
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
